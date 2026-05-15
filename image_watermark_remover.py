@@ -51,7 +51,7 @@ class WatermarkRemoverApp:
         # Instructions
         instr_label = tk.Label(
             self.root,
-            text="Powered by Lama Cleaner AI - Draw rectangle around watermark area to remove",
+            text="Powered by Lama Cleaner AI - Auto-detect or manually select watermark area",
             font=("Arial", 14),
             fg="green",
             bg="lightyellow"
@@ -66,6 +66,54 @@ class WatermarkRemoverApp:
             fg="darkblue"
         )
         self.status_label.place(x=50, y=160)
+        
+        # Detection method frame
+        detect_frame = tk.LabelFrame(self.root, text="Watermark Detection Method", font=("Arial", 11), fg="blue")
+        detect_frame.place(x=50, y=200, width=500, height=180)
+        
+        # Auto-detect button
+        auto_btn = tk.Button(
+            detect_frame,
+            text="Auto-Detect Watermark",
+            command=self.auto_detect_watermark,
+            font=("Arial", 11),
+            bg="lightcyan",
+            fg="darkblue"
+        )
+        auto_btn.pack(pady=5)
+        
+        # Edge-based detection button
+        edge_btn = tk.Button(
+            detect_frame,
+            text="Detect by Edges",
+            command=lambda: self.detect_by_method("edge"),
+            font=("Arial", 11),
+            bg="lightyellow",
+            fg="darkblue"
+        )
+        edge_btn.pack(pady=5)
+        
+        # Color-based detection button
+        color_btn = tk.Button(
+            detect_frame,
+            text="Detect by Color Contrast",
+            command=lambda: self.detect_by_method("color"),
+            font=("Arial", 11),
+            bg="lightgreen",
+            fg="darkblue"
+        )
+        color_btn.pack(pady=5)
+        
+        # Manual selection button
+        manual_btn = tk.Button(
+            detect_frame,
+            text="Manual Selection (Draw)",
+            command=self.manual_selection,
+            font=("Arial", 11),
+            bg="lightcoral",
+            fg="darkblue"
+        )
+        manual_btn.pack(pady=5)
         
         # Select button
         select_btn = tk.Button(
@@ -231,6 +279,138 @@ class WatermarkRemoverApp:
         if messagebox.askokcancel("Exit", "Do you want to exit?"):
             cv2.destroyAllWindows()
             self.root.destroy()
+    
+    def manual_selection(self):
+        # Manual watermark selection
+        if self.original_img is None:
+            messagebox.showwarning("Warning", "Please select an image first")
+            return
+        
+        # Initialize mask
+        self.mask = np.zeros(self.original_img.shape[:2], dtype=np.uint8)
+        
+        # Show image and register mouse callback
+        cv2.imshow("Manual Selection - Draw Rectangle", self.original_img)
+        cv2.setMouseCallback("Manual Selection - Draw Rectangle", self.mouse_callback)
+        messagebox.showinfo("Instructions", "Draw rectangle around watermark\nLeft click drag to select area\nPress any key when done")
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+        messagebox.showinfo("Success", "Watermark area selected. Click 'REMOVE WATERMARK' to process.")
+    
+    def auto_detect_watermark(self):
+        # Automatically detect watermark using multiple methods
+        if self.original_img is None:
+            messagebox.showwarning("Warning", "Please select an image first")
+            return
+        
+        self.status_label.config(text="Status: Auto-detecting watermark...")
+        self.root.update()
+        
+        try:
+            # Try edge-based detection first (usually most effective)
+            self.mask = self._detect_edges()
+            
+            if cv2.countNonZero(self.mask) == 0:
+                # If no watermark found, try color-based detection
+                self.mask = self._detect_color_contrast()
+            
+            if cv2.countNonZero(self.mask) > 0:
+                self.status_label.config(text="Status: Watermark detected! Click 'REMOVE WATERMARK' to process.")
+                messagebox.showinfo("Success", "Watermark area auto-detected!\nReview the mask and click 'REMOVE WATERMARK' to remove it.")
+                
+                # Show mask preview
+                mask_preview = cv2.cvtColor(self.mask, cv2.COLOR_GRAY2BGR)
+                cv2.imshow("Detected Watermark Mask", mask_preview)
+                cv2.waitKey(2000)
+                cv2.destroyAllWindows()
+            else:
+                messagebox.showwarning("Notice", "Could not auto-detect watermark. Please use manual selection.")
+                self.status_label.config(text="Status: Auto-detection failed. Use manual selection.")
+                
+        except Exception as e:
+            messagebox.showerror("Error", f"Auto-detection failed: {str(e)}")
+            self.status_label.config(text="Status: Error in auto-detection")
+    
+    def detect_by_method(self, method):
+        # Detect watermark by specific method
+        if self.original_img is None:
+            messagebox.showwarning("Warning", "Please select an image first")
+            return
+        
+        self.status_label.config(text=f"Status: Detecting by {method}...")
+        self.root.update()
+        
+        try:
+            if method == "edge":
+                self.mask = self._detect_edges()
+            elif method == "color":
+                self.mask = self._detect_color_contrast()
+            
+            if cv2.countNonZero(self.mask) > 0:
+                self.status_label.config(text=f"Status: Watermark detected by {method}!")
+                messagebox.showinfo("Success", f"Watermark detected by {method}!\nClick 'REMOVE WATERMARK' to process.")
+                
+                # Show mask preview
+                mask_preview = cv2.cvtColor(self.mask, cv2.COLOR_GRAY2BGR)
+                cv2.imshow(f"Detected Watermark Mask ({method})", mask_preview)
+                cv2.waitKey(2000)
+                cv2.destroyAllWindows()
+            else:
+                messagebox.showwarning("Notice", f"Could not detect watermark using {method} method.")
+                self.status_label.config(text="Status: No watermark detected. Try another method.")
+                
+        except Exception as e:
+            messagebox.showerror("Error", f"Detection failed: {str(e)}")
+            self.status_label.config(text="Status: Error in detection")
+    
+    def _detect_edges(self):
+        # Detect watermark using edge detection
+        gray = cv2.cvtColor(self.original_img, cv2.COLOR_BGR2GRAY)
+        
+        # Apply Gaussian blur to reduce noise
+        blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+        
+        # Detect edges using Canny
+        edges = cv2.Canny(blurred, 50, 150)
+        
+        # Dilate edges to connect nearby points
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
+        dilated = cv2.dilate(edges, kernel, iterations=2)
+        
+        # Create mask from dilated edges
+        mask = dilated.copy()
+        
+        # Remove small noise
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        mask = np.zeros_like(mask)
+        
+        for contour in contours:
+            area = cv2.contourArea(contour)
+            if area > 100:  # Only keep larger contours (watermarks)
+                cv2.drawContours(mask, [contour], 0, 255, -1)
+        
+        return mask
+    
+    def _detect_color_contrast(self):
+        # Detect watermark using color contrast
+        # Convert to LAB color space for better color analysis
+        lab = cv2.cvtColor(self.original_img, cv2.COLOR_BGR2LAB)
+        
+        # Split channels
+        l_channel = lab[:, :, 0]
+        
+        # Apply adaptive thresholding to find areas with different brightness
+        bright_areas = cv2.adaptiveThreshold(l_channel, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                             cv2.THRESH_BINARY, 11, 2)
+        
+        # Dilate to connect nearby bright areas
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
+        dilated = cv2.dilate(bright_areas, kernel, iterations=1)
+        
+        # Apply morphological closing to fill gaps
+        closed = cv2.morphologyEx(dilated, cv2.MORPH_CLOSE, kernel, iterations=1)
+        
+        return closed
 
 
 if __name__ == "__main__":
