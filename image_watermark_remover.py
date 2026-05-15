@@ -1,6 +1,6 @@
 
 # Image Watermark Remover
-# Imports necessary libraries
+# Advanced AI-powered watermark removal using Lama Cleaner
 import tkinter as tk
 from tkinter import filedialog, messagebox
 from PIL import ImageTk, Image
@@ -8,18 +8,14 @@ import cv2
 import numpy as np
 import os
 
-try:
-    from lama_cleaner.model_manager import ModelManager
-    from lama_cleaner.default_config import Config
-    LAMA_AVAILABLE = True
-except ImportError:
-    LAMA_AVAILABLE = False
+from lama_cleaner.model_manager import ModelManager
+from lama_cleaner.default_config import Config
 
 
 class WatermarkRemoverApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Image Watermark Remover")
+        self.root.title("Image Watermark Remover - Powered by Lama Cleaner AI")
         self.root.geometry('1200x750')
         
         self.original_img = None
@@ -27,8 +23,17 @@ class WatermarkRemoverApp:
         self.mask = None
         self.drawing = False
         self.start_point = (0, 0)
-        self.removal_method = "opencv"  # Default method
         self.lama_model = None
+        
+        # Initialize Lama model
+        try:
+            messagebox.showinfo("Loading", "Initializing Lama Cleaner AI model...\nThis may take a moment on first run")
+            self.config = Config(device="cpu", use_cuda=False)
+            self.lama_model = ModelManager(name="lama", device="cpu")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to load Lama Cleaner: {str(e)}\n\nPlease ensure all dependencies are installed:\npip install -r requirements.txt")
+            self.root.destroy()
+            return
         
         # Setup GUI
         self.setup_gui()
@@ -46,55 +51,21 @@ class WatermarkRemoverApp:
         # Instructions
         instr_label = tk.Label(
             self.root,
-            text="Select an image with watermark, then draw rectangle around watermark area",
+            text="Powered by Lama Cleaner AI - Draw rectangle around watermark area to remove",
             font=("Arial", 14),
-            fg="green"
+            fg="green",
+            bg="lightyellow"
         )
         instr_label.place(x=50, y=100)
         
-        # Method selection frame
-        method_frame = tk.LabelFrame(self.root, text="Removal Method", font=("Arial", 12), fg="blue")
-        method_frame.place(x=50, y=150, width=400, height=120)
-        
-        # OpenCV method button
-        opencv_btn = tk.Button(
-            method_frame,
-            text="Use OpenCV (Fast)",
-            command=lambda: self.set_method("opencv"),
-            font=("Arial", 12),
-            bg="lightblue",
-            fg="black"
-        )
-        opencv_btn.pack(pady=5)
-        
-        # Lama Cleaner method button
-        if LAMA_AVAILABLE:
-            lama_btn = tk.Button(
-                method_frame,
-                text="Use Lama Cleaner (AI - Best Quality)",
-                command=lambda: self.set_method("lama"),
-                font=("Arial", 12),
-                bg="lightgreen",
-                fg="black"
-            )
-            lama_btn.pack(pady=5)
-        else:
-            lama_status = tk.Label(
-                method_frame,
-                text="Lama Cleaner not installed\n(Install: pip install lama-cleaner torch torchvision)",
-                font=("Arial", 10),
-                fg="red"
-            )
-            lama_status.pack(pady=5)
-        
-        # Current method label
-        self.method_label = tk.Label(
+        # Status label
+        self.status_label = tk.Label(
             self.root,
-            text="Current method: OpenCV",
+            text="Status: Ready. Using Lama Cleaner AI model",
             font=("Arial", 12),
             fg="darkblue"
         )
-        self.method_label.place(x=50, y=300)
+        self.status_label.place(x=50, y=160)
         
         # Select button
         select_btn = tk.Button(
@@ -195,16 +166,6 @@ class WatermarkRemoverApp:
         self.mask = np.zeros(self.original_img.shape[:2], dtype=np.uint8)
         messagebox.showinfo("Success", "Mask cleared. You can now draw a new selection.")
     
-    def set_method(self, method):
-        if method == "lama" and not LAMA_AVAILABLE:
-            messagebox.showerror("Error", "Lama Cleaner is not installed\nPlease run: pip install lama-cleaner torch torchvision")
-            return
-        
-        self.removal_method = method
-        method_name = "Lama Cleaner (AI)" if method == "lama" else "OpenCV (Fast)"
-        self.method_label.config(text=f"Current method: {method_name}")
-        messagebox.showinfo("Success", f"Switched to {method_name}")
-    
     def remove_watermark(self):
         if self.original_img is None:
             messagebox.showwarning("Warning", "Please select an image first")
@@ -214,80 +175,9 @@ class WatermarkRemoverApp:
             messagebox.showwarning("Warning", "Please select watermark area first")
             return
         
-        if self.removal_method == "lama":
-            self.remove_watermark_lama()
-        else:
-            self.remove_watermark_opencv()
-    
-    def remove_watermark_opencv(self):
         try:
-            # Show mask preview first
-            mask_preview = cv2.cvtColor(self.mask, cv2.COLOR_GRAY2BGR)
-            cv2.imshow("Mask Preview (White = Area to Remove)", mask_preview)
-            messagebox.showinfo("Mask Preview", "Check if the marked area is correct\nPress OK to continue with removal")
-            cv2.destroyAllWindows()
-            
-            # Smooth the mask to avoid hard rectangular edges
-            smooth_mask = self.mask.copy()
-            
-            # Dilate mask slightly to ensure full coverage
-            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
-            smooth_mask = cv2.dilate(smooth_mask, kernel, iterations=1)
-            
-            # Apply Gaussian blur to create soft edges
-            smooth_mask = cv2.GaussianBlur(smooth_mask, (15, 15), 0)
-            
-            # Normalize to 0-255 range
-            smooth_mask = np.uint8(smooth_mask)
-            
-            # Apply inpainting multiple times for better results
-            result = self.original_img.copy()
-            
-            # First pass with smoothed mask
-            result = cv2.inpaint(
-                result,
-                smooth_mask,
-                5,
-                cv2.INPAINT_NS
-            )
-            
-            # Second pass for fine-tuning
-            result = cv2.inpaint(
-                result,
-                cv2.GaussianBlur(smooth_mask, (5, 5), 0),
-                3,
-                cv2.INPAINT_TELEA
-            )
-            
-            # Display result
-            cv2.imshow("Original Image", self.original_img)
-            cv2.imshow("Watermark Removed", result)
-            messagebox.showinfo("Result", "Review the watermark removal result\nPress OK to save or close the image windows")
-            
-            # Ask to save
-            if messagebox.askyesno("Save", "Save the result?"):
-                output_path = filedialog.asksaveasfilename(
-                    defaultextension=".jpg",
-                    filetypes=[("JPEG", "*.jpg"), ("PNG", "*.png"), ("All files", "*.*")]
-                )
-                if output_path:
-                    cv2.imwrite(output_path, result)
-                    messagebox.showinfo("Success", f"Image saved to {output_path}")
-            
-            cv2.waitKey(0)
-            cv2.destroyAllWindows()
-            
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to remove watermark: {str(e)}")
-    
-    def remove_watermark_lama(self):
-        try:
-            messagebox.showinfo("Loading", "Initializing Lama Cleaner AI model...\nThis may take a minute on first run")
-            
-            # Initialize Lama model on first use
-            if self.lama_model is None:
-                config = Config(device="cpu", use_cuda=False)
-                self.lama_model = ModelManager(name="lama", device="cpu")
+            self.status_label.config(text="Status: Processing with Lama Cleaner AI...")
+            self.root.update()
             
             # Show mask preview
             mask_preview = cv2.cvtColor(self.mask, cv2.COLOR_GRAY2BGR)
@@ -311,6 +201,8 @@ class WatermarkRemoverApp:
             # Convert back to BGR
             result = cv2.cvtColor(result_rgb, cv2.COLOR_RGB2BGR)
             
+            self.status_label.config(text="Status: Processing complete!")
+            
             # Display result
             cv2.imshow("Original Image", self.original_img)
             cv2.imshow("Watermark Removed (Lama AI)", result)
@@ -325,12 +217,15 @@ class WatermarkRemoverApp:
                 if output_path:
                     cv2.imwrite(output_path, result)
                     messagebox.showinfo("Success", f"Image saved to {output_path}")
+                    self.status_label.config(text="Status: Image saved successfully!")
             
             cv2.waitKey(0)
             cv2.destroyAllWindows()
+            self.status_label.config(text="Status: Ready. Using Lama Cleaner AI model")
             
         except Exception as e:
-            messagebox.showerror("Error", f"Lama Cleaner failed: {str(e)}\nPlease ensure it's properly installed:\npip install lama-cleaner torch torchvision")
+            self.status_label.config(text="Status: Error occurred")
+            messagebox.showerror("Error", f"Watermark removal failed: {str(e)}")
     
     def exit_app(self):
         if messagebox.askokcancel("Exit", "Do you want to exit?"):
