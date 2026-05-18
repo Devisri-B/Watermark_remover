@@ -66,6 +66,7 @@ class RemovalResult(BaseModel):
     method: str
     processing_time: float
     quality_metrics: Dict
+    image: str  # Base64 encoded processed image
     message: str
 
 
@@ -230,11 +231,19 @@ async def remove_watermark(
         # Compute quality metrics
         quality_metrics = _metrics_computer.compute_all_metrics(image, result, mask)
         
+        # Encode result image as base64
+        import base64
+        success, buffer = cv2.imencode('.png', result)
+        if not success:
+            raise ValueError("Failed to encode result image")
+        result_base64 = base64.b64encode(buffer).decode('utf-8')
+        
         return RemovalResult(
             success=True,
             method=method,
             processing_time=processing_time,
             quality_metrics=quality_metrics,
+            image=f"data:image/png;base64,{result_base64}",
             message=f"Watermark removed successfully using {method}"
         )
         

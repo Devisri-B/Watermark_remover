@@ -31,6 +31,7 @@ export interface RemovalResult {
     contrast_processed: number
     brisque_improvement: number
   }
+  image: string // Base64 encoded processed image
   message: string
 }
 

@@ -38,6 +38,15 @@ function App() {
   const [availableMethods, setAvailableMethods] = useState<MethodInfo[]>([])
   const [darkMode, setDarkMode] = useState(true)
 
+  // Apply dark mode to document
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark')
+    } else {
+      document.documentElement.classList.remove('dark')
+    }
+  }, [darkMode])
+
   // Load available methods on mount
   useEffect(() => {
     const loadMethods = async () => {
@@ -156,12 +165,10 @@ function App() {
         state.selectedMethod === 'stable_diffusion' ? 30 : undefined
       )
 
-      // Generate result image (in real scenario, this comes from backend)
-      // For now, we'll show a placeholder
       setState(prev => ({
         ...prev,
         removalResult: result,
-        processedImage: state.originalImage, // Would be replaced with actual result
+        processedImage: result.image, // Use actual processed image from backend
         isRemoving: false,
       }))
     } catch (err) {
@@ -184,22 +191,22 @@ function App() {
 
   return (
     <div className={darkMode ? 'dark' : ''}>
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 text-white transition-colors">
+      <div className={`min-h-screen ${darkMode ? 'bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white' : 'bg-gradient-to-br from-slate-100 via-slate-50 to-slate-100 text-slate-900'} transition-colors`}>
         {/* Header */}
-        <header className="border-b border-slate-700 bg-slate-900/50 backdrop-blur-sm">
+        <header className={`border-b ${darkMode ? 'border-slate-700 bg-slate-900/50' : 'border-slate-200 bg-white/50'} backdrop-blur-sm`}>
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
             <div className="flex justify-between items-center">
               <div>
                 <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
                   Watermark Removal Tool
                 </h1>
-                <p className="text-slate-400 text-sm mt-1">
+                <p className={`text-sm mt-1 ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
                   AI-powered watermark detection and removal
                 </p>
               </div>
               <button
                 onClick={() => setDarkMode(!darkMode)}
-                className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 transition-colors"
+                className={`px-4 py-2 rounded-lg transition-colors ${darkMode ? 'bg-slate-800 hover:bg-slate-700' : 'bg-slate-200 hover:bg-slate-300'}`}
               >
                 {darkMode ? '☀️' : '🌙'}
               </button>
@@ -211,13 +218,13 @@ function App() {
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {/* Error Alert */}
           {state.error && (
-            <div className="mb-6 p-4 rounded-lg bg-red-900/20 border border-red-500/30 flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+            <div className={`mb-6 p-4 rounded-lg ${darkMode ? 'bg-red-900/20 border border-red-500/30' : 'bg-red-100 border border-red-300'} flex items-start gap-3`}>
+              <AlertCircle className={`w-5 h-5 ${darkMode ? 'text-red-400' : 'text-red-600'} flex-shrink-0 mt-0.5`} />
               <div>
-                <p className="font-medium text-red-400">{state.error}</p>
+                <p className={`font-medium ${darkMode ? 'text-red-400' : 'text-red-700'}`}>{state.error}</p>
                 <button
                   onClick={() => setState(prev => ({ ...prev, error: null }))}
-                  className="text-sm text-red-300 hover:text-red-200 mt-1"
+                  className={`text-sm mt-1 ${darkMode ? 'text-red-300 hover:text-red-200' : 'text-red-600 hover:text-red-700'}`}
                 >
                   Dismiss
                 </button>
@@ -229,14 +236,14 @@ function App() {
             {/* Left Column: Upload & Detection */}
             <div className="space-y-6">
               {/* Image Upload */}
-              <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700 p-6">
+              <div className={`${darkMode ? 'bg-slate-800/50' : 'bg-slate-100/50'} backdrop-blur-sm rounded-xl border ${darkMode ? 'border-slate-700' : 'border-slate-300'} p-6`}>
                 <h2 className="text-xl font-semibold mb-4">1. Upload Image</h2>
                 <ImageUpload onImageUpload={handleImageUpload} isLoading={state.isDetecting} />
               </div>
 
               {/* Detection Display */}
               {state.detectionResult && (
-                <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700 p-6">
+                <div className={`${darkMode ? 'bg-slate-800/50' : 'bg-slate-100/50'} backdrop-blur-sm rounded-xl border ${darkMode ? 'border-slate-700' : 'border-slate-300'} p-6`}>
                   <h2 className="text-xl font-semibold mb-4">2. Watermark Detection</h2>
                   <DetectionDisplay result={state.detectionResult} />
                 </div>
@@ -244,7 +251,7 @@ function App() {
 
               {/* Method Selector */}
               {state.detectionResult && (
-                <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700 p-6">
+                <div className={`${darkMode ? 'bg-slate-800/50' : 'bg-slate-100/50'} backdrop-blur-sm rounded-xl border ${darkMode ? 'border-slate-700' : 'border-slate-300'} p-6`}>
                   <h2 className="text-xl font-semibold mb-4">3. Select Removal Method</h2>
                   <MethodSelector
                     methods={availableMethods}
@@ -281,7 +288,7 @@ function App() {
             <div className="space-y-6">
               {/* Before/After View */}
               {state.originalImage && (
-                <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700 p-6">
+                <div className={`${darkMode ? 'bg-slate-800/50' : 'bg-slate-100/50'} backdrop-blur-sm rounded-xl border ${darkMode ? 'border-slate-700' : 'border-slate-300'} p-6`}>
                   <h2 className="text-xl font-semibold mb-4">
                     {state.processedImage ? 'Results' : 'Preview'}
                   </h2>
@@ -295,7 +302,7 @@ function App() {
 
               {/* Quality Metrics */}
               {state.removalResult && (
-                <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700 p-6">
+                <div className={`${darkMode ? 'bg-slate-800/50' : 'bg-slate-100/50'} backdrop-blur-sm rounded-xl border ${darkMode ? 'border-slate-700' : 'border-slate-300'} p-6`}>
                   <h2 className="text-xl font-semibold mb-4">Quality Metrics</h2>
                   <QualityMetrics metrics={state.removalResult.quality_metrics} />
                 </div>
