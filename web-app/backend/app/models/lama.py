@@ -30,13 +30,8 @@ class LamaRemoval(RemovalMethod):
         """Load Lama model lazily."""
         try:
             from lama_cleaner.model_manager import ModelManager
-            from lama_cleaner.schema import Config, HDStrategy
             
-            config = Config(
-                hd_strategy=HDStrategy.CROP,
-                device=self.device,
-            )
-            
+            # Initialize model manager with CPU support
             self.model = ModelManager(
                 name="lama",
                 device=self.device,
@@ -46,6 +41,7 @@ class LamaRemoval(RemovalMethod):
             
             return True
         except ImportError:
+            print("Lama Cleaner not installed, skipping")
             return False
         except Exception as e:
             print(f"Error loading Lama model: {e}")
@@ -75,8 +71,17 @@ class LamaRemoval(RemovalMethod):
             # Convert BGR to RGB for Lama
             image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             
-            # Apply Lama inpainting
-            result_rgb = self.model(image_rgb, mask_binary)
+            # Convert numpy to PIL for Lama
+            from PIL import Image
+            image_pil = Image.fromarray(image_rgb)
+            mask_pil = Image.fromarray(mask_binary, mode='L')
+            
+            # Apply Lama inpainting - the model returns numpy array
+            result_rgb = self.model(image_pil, mask_pil)
+            
+            # If result is PIL Image, convert to numpy
+            if isinstance(result_rgb, Image.Image):
+                result_rgb = np.array(result_rgb)
             
             # Convert back to BGR
             result = cv2.cvtColor(result_rgb, cv2.COLOR_RGB2BGR)

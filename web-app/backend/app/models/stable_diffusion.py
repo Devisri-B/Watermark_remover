@@ -88,15 +88,14 @@ class StableDiffusionRemoval(RemovalMethod):
             num_inference_steps = max(20, min(50, num_inference_steps))
             
             # Run inpainting
-            with self.pipeline.no_grad() if hasattr(self.pipeline, 'no_grad') else self.pipeline:
-                result_pil = self.pipeline(
-                    prompt="",  # Empty prompt for object removal
-                    image=image_pil,
-                    mask_image=mask_pil,
-                    num_inference_steps=num_inference_steps,
-                    guidance_scale=7.5,
-                    negative_prompt="watermark, text, logo",
-                ).images[0]
+            result_pil = self.pipeline(
+                prompt="",  # Empty prompt for object removal
+                image=image_pil,
+                mask_image=mask_pil,
+                num_inference_steps=num_inference_steps,
+                guidance_scale=7.5,
+                negative_prompt="watermark, text, logo",
+            ).images[0]
             
             # Convert back to numpy BGR
             result_rgb = np.array(result_pil)
@@ -129,8 +128,10 @@ class StableDiffusionRemoval(RemovalMethod):
         """Convert numpy array to PIL Image."""
         try:
             from PIL import Image
-            image_uint8 = (image.astype(np.float32)).astype(np.uint8)
-            return Image.fromarray(image_uint8, mode='RGB')
+            # Ensure image is uint8
+            if image.dtype != np.uint8:
+                image = np.clip(image, 0, 255).astype(np.uint8)
+            return Image.fromarray(image, mode='RGB')
         except Exception as e:
             raise RuntimeError(f"Error converting to PIL: {e}")
     

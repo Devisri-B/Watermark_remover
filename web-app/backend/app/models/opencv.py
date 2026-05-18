@@ -74,6 +74,10 @@ class OpenCVRemoval(RemovalMethod):
         except Exception as e:
             return image, {"error": str(e), "method": "opencv"}
     
+    def is_available(self) -> bool:
+        """Check if OpenCV inpainting is available (always true for basic OpenCV)."""
+        return True
+    
     def _compute_ssim(self, original: np.ndarray, result: np.ndarray, 
                       mask: np.ndarray) -> float:
         """
@@ -88,22 +92,52 @@ class OpenCVRemoval(RemovalMethod):
             SSIM score in range [0, 1]
         """
         try:
-            # Convert to grayscale
-            orig_gray = cv2.cvtColor(original, cv2.COLOR_BGR2GRAY)
-            result_gray = cv2.cvtColor(result, cv2.COLOR_BGR2GRAY)
-            
-            # Compute local SSIM
-            mask_bool = mask > 128
-            if not np.any(mask_bool):
-                return 0.0
-            
-            # Simple SSIM approximation for masked region
-            diff = np.abs(orig_gray.astype(float) - result_gray.astype(float))
-            masked_diff = diff[mask_bool]
-            
-            # Inverse of mean absolute difference (0 = identical, high = different)
-            ssim_score = 1.0 / (1.0 + np.mean(masked_diff) / 255.0)
-            
-            return float(ssim_score)
+            # Try using scikit-image SSIM if available
+            try:
+                from skimage.metrics import structural_similarity as ssim
+                
+                # Convert to grayscale
+                orig_gray = cv2.cvtColor(original, cv2.COLOR_BGR2GRAY)
+                result_gray = cv2.cvtColor(result, cv2.COLOR_BGR2GRAY)
+                
+                # Compute SSIM only on masked region
+                mask_bool = mask > 128
+                if not np.any(mask_bool):
+                    return 0.5
+                
+                # Extract patches from masked region
+                orig_patch = orig_gray[mask_bool]
+                result_patch = result_gray[mask_bool]
+                
+                # Use simple correlation for compatibility
+                if len(orig_patch) > 0:
+                    correlation = np.corrcoef(orig_patch, result_patch)[0, 1]
+                    if np.isnan(correlation):
+                        correlation = 0.0
+                    # Scale correlation to [0, 1]
+                    ssim_score = (correlation + 1.0) / 2.0
+                else:
+                    ssim_score = 0.5
+                    
+                return float(np.clip(ssim_score, 0.0, 1.0))
+                
+            except ImportError:
+                # Fallback if scikit-image not available
+                orig_gray = cv2.cvtColor(original, cv2.COLOR_BGR2GRAY)
+                result_gray = cv2.cvtColor(result, cv2.COLOR_BGR2GRAY)
+                
+                mask_bool = mask > 128
+                if not np.any(mask_bool):
+                    return 0.5
+                
+                # Simple SSIM approximation for masked region
+                diff = np.abs(orig_gray.astype(float) - result_gray.astype(float))
+                masked_diff = diff[mask_bool]
+                
+                # Inverse of mean absolute difference (0 = identical, high = different)
+                ssim_score = 1.0 / (1.0 + np.mean(masked_diff) / 255.0)
+                
+                return float(ssim_score)
+                
         except Exception:
             return 0.5

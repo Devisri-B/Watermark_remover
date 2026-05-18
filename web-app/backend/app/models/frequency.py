@@ -107,12 +107,14 @@ class FrequencyRemoval(RemovalMethod):
             # Blend with original (don't over-process)
             gray_result = cv2.addWeighted(gray, 0.7, img_back, 0.3, 0)
             
+            # Convert grayscale result back to BGR
+            color_result = cv2.cvtColor(gray_result, cv2.COLOR_GRAY2BGR)
+            
             # Apply mask blending with original
             result = image.copy()
-            for c in range(3):
-                result[:, :, c] = np.where(mask > 128, gray_result, image[:, :, c])
+            result = np.where(mask[:, :, np.newaxis] > 128, color_result, image)
             
-            return result
+            return result.astype(np.uint8)
         except Exception:
             return image
     
@@ -180,3 +182,7 @@ class FrequencyRemoval(RemovalMethod):
             return sharpened
         except Exception:
             return image
+    
+    def is_available(self) -> bool:
+        """Check if frequency method is available (always true for NumPy/SciPy)."""
+        return True
